@@ -1,3 +1,6 @@
+import sys
+import os
+
 class VerbosityMeta(type):
     '''
     Metaclass for Verbosity, disallowing manual modification of variables
@@ -192,7 +195,8 @@ class Verbosity(object, metaclass=VerbosityMeta):
                 raise
     
     @staticmethod
-    def _handle_msg(msg, *args, e=None, **kwargs):
+    def _handle_msg(msg, *args, e=None, out=sys.stdout,
+                    end='\n', flush=True, **kwargs):
         '''
         Calls `msg` with `*args` if its callable object, otherwise
         prints `msg` formatted with `*args`.
@@ -207,7 +211,11 @@ class Verbosity(object, metaclass=VerbosityMeta):
             else:
                 msg()
         elif isinstance(msg, str):
-            print(msg.format(*args), end='' if len(msg) == 0 else '\n')
+            out.write(msg.format(*args))
+            if len(msg) > 0:
+                out.write(end)
+            if flush is True:
+                out.flush()
         elif isinstance(msg, tuple):
             is_args = msg[0] == Verbosity.PARAMETERS
             if e is not None:
@@ -224,7 +232,9 @@ class Verbosity(object, metaclass=VerbosityMeta):
             raise TypeError('msg has to be callable, str or tuple(actual type: {})'.format(type(msg)))
     
     @classmethod
-    def printer(cls, verb, msg_before="", msg_after="", msg_except=None, rethrow=None, bubble=True):
+    def printer(cls, verb, msg_before="", msg_after="", msg_except=None,
+                rethrow=None, bubble=True, out=sys.stdout,
+                out_end='\n', flush=True):
         '''
         A decorator for a function that allows showing given messages, if
         verbosity is set to `verb`.
@@ -255,6 +265,12 @@ class Verbosity(object, metaclass=VerbosityMeta):
         If `msg_except` is not provided or is `None` and `rethrow` is not None,
         `rethrow` is automatically set to `True` as the decorator expects
         internal handling of exceptions raised by the decorated function.
+
+        `out` controls where the output will be sent into.
+        
+        `out_end` is a string to append after the message has been posted to `out`.
+
+        `flush` controls whether to flush the output after posting the message.
         '''
         def outer_wrapper(func):
             @_safe_verbosity_modify
@@ -268,7 +284,8 @@ class Verbosity(object, metaclass=VerbosityMeta):
                     if msg_except is None:
                         rethrow = True if rethrow is not None else False
 
-                    cls._handle_msg(msg_before, *args, **kwargs)
+                    cls._handle_msg(msg_before, out=out, out_end=out_end,
+                                        flush=flush, *args, **kwargs)
                     try:
                         _v = cls.level
                         if bubble is False:
@@ -276,11 +293,13 @@ class Verbosity(object, metaclass=VerbosityMeta):
                         func(*args, **kwargs)
                         cls.level = _v
                     except Exception as e:
-                        cls._handle_msg(msg_except, e=e, *args, **kwargs)
+                        cls._handle_msg(msg_except, e=e, out=out, out_end=out_end,
+                                        flush=flush, *args, **kwargs)
                         if rethrow is True:
                             raise
                     else:
-                        cls._handle_msg(msg_after, *args, **kwargs)
+                        cls._handle_msg(msg_after, out=out, out_end=out_end,
+                                        flush=flush, *args, **kwargs)
                 else:
                     func(*args, **kwargs)
             return wrapper
@@ -288,18 +307,3 @@ class Verbosity(object, metaclass=VerbosityMeta):
 
 if __name__ == "__main__":
     pass
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
